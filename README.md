@@ -18,6 +18,8 @@ This will read in the raw beamformer data and create a file names test.bin with 
 
 ./bf2fb -input ../../anttest10_1ants_w3oh_6660_4hrphase.raw -outfreq 1422.5 -outbw 0.1 -fftsize 128 -int 10000 -output ./testdata/test.fil -source w3oh
 
+Note: this is a work in progress. The -outfreq and -outbw do nothing yet.
+
 
 
 
