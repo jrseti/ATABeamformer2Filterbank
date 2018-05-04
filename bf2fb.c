@@ -58,7 +58,7 @@ int headerOnly = 0;
 float outputCenterFreqMHz = 0.0;
 float outputBWHz = 0.0;
 int fftSize = 1024;
-int intMs = 10000;
+int intUs = 10000000;
 
 typedef struct _timeval 
 {
@@ -75,7 +75,7 @@ void printHelp()
 {
 	printf("fft - Utility to read beamformer data from a file or socket and produce stats.\n");
 	printf("  Syntax:\n");
-	printf("    fft <-output filename> <-source sourcename> [-m <multicast address>] [-p <port>] [-input filename] [-outfreq MHz -outbw hz] [-header] [-fftsize <size>] [-int <milliseconds>]\n");
+	printf("    fft <-output filename> <-source sourcename> [-m <multicast address>] [-p <port>] [-input filename] [-outfreq MHz -outbw hz] [-header] [-fftsize <size>] [-int <microseconds>]\n");
 	printf("      Center frequency of the input data is determined from the beamformer header.\n");
 	printf("      if -f specied the data is read from a file and the -m and -p options are ignored.\n");
 	printf("      if -f or -m not specified, this program will receive on unicast.\n");
@@ -87,7 +87,7 @@ void printHelp()
 	printf("        entire bandwidth of the incomming data will be used.\n");
 	printf("      -header - reads in the first data packet, prints out the header to stdout, then exits.\n");
 	printf("      -fftsize - size of the FFT, defaults to 1024.\n");
-	printf("      -int - integration time in milliseconds. Defaults to 10,000.\n");
+	printf("      -int - integration time in microseconds. Defaults to 10,000,000 (10 seconds).\n");
 	exit(1);
 }
 
@@ -156,7 +156,7 @@ FILE *gatherHeaderdata(PacketHeader *header, int fft_size, char *sourcename ) {
     unsigned int secs = getSecsFromHeader((unsigned char *)header);
     double time_mjd = mjd((time_t)secs);
 
-    double tstamp = (double)intMs/1000.0;
+    double tstamp = (double)intUs/1000000.0;
 
     // Get the source ra/dec
     char command[256];
@@ -306,7 +306,7 @@ void readArgs(int argc, char *argv[]) {
             }
         }
         else if(!strncmp(argv[i], "-int", strlen("-int"))) {
-            intMs = (int)atoi(argv[i+1]);
+            intUs = (int)atoi(argv[i+1]);
         }
     }
     for(i = 0; i<argc; i++) {
@@ -435,7 +435,7 @@ int checkArgs() {
     else fprintf(stderr, "Stats bandwidth %f MHz.\n", outputBWHz);
 
     fprintf(stderr, "FFT size: %d\n", fftSize);
-    fprintf(stderr, "Integration time: %d milliseconds\n", intMs);
+    fprintf(stderr, "Integration time: %d microseconds\n", intUs);
 
     if(headerOnly) fprintf(stderr, "Printing first data header, then exiting.\n");
 
@@ -466,14 +466,20 @@ void fftDestroy() {
 // Dump out the power values
 void dump(float *power, int len, FILE *outputFp) {
 
+    /*
     int i = 0;
     for(i = 0; i<len; i++) {
         printf("%f,", power[i]);
     }
     printf("\n");
+    */
 
-    int success = fbWriteFloatData(power, len, outputFp);
-    fprintf(stderr, "Dump success = %d\n", success);
+    //Make the first value == the second value. Takes care of large DC
+    power[0] = power[1];
+
+    fbWriteFloatData(power, len, outputFp);
+    //int success = fbWriteFloatData(power, len, outputFp);
+    //fprintf(stderr, "Dump success = %d\n", success);
 
 }
 
@@ -546,7 +552,7 @@ int main (int argc, char *argv[])
                 fprintf(stderr,"Sample rate = %lf\n", sampleRate);
                 //Calculate the number of packets for each dump
                 // sr(s/sec)*intSecs(sec)/(samples/packet)
-                packetsPerDump = (int)((double)(sampleRate*1000000.0)*((double)intMs/1000.0)/(double)SAMPLES_PER_PACKET);
+                packetsPerDump = (int)((double)(sampleRate*1000000.0)*((double)intUs/1000000.0)/(double)SAMPLES_PER_PACKET);
                 fprintf(stderr,"Packets per dump = %d\n", packetsPerDump);
 
                 outputFp = gatherHeaderdata((PacketHeader *)databuf, fftSize, sourceName );

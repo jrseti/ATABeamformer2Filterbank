@@ -69,7 +69,7 @@ void fbClose(FILE *outputFp) {
 
 int fbWriteFloatData(float *data, int length, FILE *outputFp) {
     if(outputFp == NULL) return 0;
-    fwrite(&length, sizeof(float), length, outputFp);
+    fwrite(data, sizeof(float), length, outputFp);
     return 1;
 }
 
