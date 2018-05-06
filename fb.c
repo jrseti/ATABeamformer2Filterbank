@@ -152,8 +152,8 @@ float float2FbRaDecFloat(float num) {
 void fbPrintHeader(filterbank_info *info) {
     fprintf(stderr,"telescope_id = %d\n", info->telescope_id); //ATA == 9
     fprintf(stderr,"machine_id   = %d\n", info->machine_id);
-    fprintf(stderr,"rawdatafile  =%s\n", info->rawdatafile);
-    fprintf(stderr,"source_name  =%s\n", info->source_name);
+    fprintf(stderr,"rawdatafile  = %s\n", info->rawdatafile);
+    fprintf(stderr,"source_name  = %s\n", info->source_name);
     fprintf(stderr,"tstart       = %lf\n", info->tstart);
     fprintf(stderr,"tsamp        = %lf\n", info->tsamp);
     fprintf(stderr,"fch1         = %lf\n", info->fch1);

@@ -59,6 +59,8 @@ float outputCenterFreqMHz = 0.0;
 float outputBWHz = 0.0;
 int fftSize = 1024;
 int intUs = 10000000;
+float ra = 0.0;
+float dec = 0.0;
 
 typedef struct _timeval 
 {
@@ -75,7 +77,7 @@ void printHelp()
 {
 	printf("fft - Utility to read beamformer data from a file or socket and produce stats.\n");
 	printf("  Syntax:\n");
-	printf("    fft <-output filename> <-source sourcename> [-m <multicast address>] [-p <port>] [-input filename] [-outfreq MHz -outbw hz] [-header] [-fftsize <size>] [-int <microseconds>]\n");
+	printf("    fft <-output filename> <-source sourcename> [-m <multicast address>] [-p <port>] [-input filename] [-outfreq MHz -outbw hz] [-header] [-fftsize <size>] [-int <microseconds>] <-ra RA> <-dec dec>\n");
 	printf("      Center frequency of the input data is determined from the beamformer header.\n");
 	printf("      if -f specied the data is read from a file and the -m and -p options are ignored.\n");
 	printf("      if -f or -m not specified, this program will receive on unicast.\n");
@@ -143,7 +145,7 @@ double mjd(time_t epoch_time)
 //./filterbank_header -o blah -nifs 1 -fch1 1420 -source B0329+54 -filename foobar.bin 
 // -telescope ARECIBO -src_raj 032900 -src_dej 540000 -tsamp 65 -foff -0.25 -nbits 8 
 // -nchans 1024 -tstart 53543.23
-FILE *gatherHeaderdata(PacketHeader *header, int fft_size, char *sourcename ) {
+FILE *gatherHeaderdata(PacketHeader *header, int fft_size, char *sourcename, float tstamp) {
 
     double fullBW = header->sampleRate*1000000.0;
     int numChannels = fft_size;
@@ -152,18 +154,20 @@ FILE *gatherHeaderdata(PacketHeader *header, int fft_size, char *sourcename ) {
             channelWidth, fullBW, numChannels);
     fprintf(stderr,"header->freq=%lf, header->sampleRate=%lf, channelWidth=%lf\n",
             header->freq, header->sampleRate, channelWidth);
-    double middleFirstChannel = ((header->freq - (header->sampleRate / 2.0)) + channelWidth/2.0);
+    //double middleFirstChannel = ((header->freq - (header->sampleRate / 2.0)) + channelWidth/2.0);
+    double middleFirstChannel = ((header->freq + (header->sampleRate / 2.0)) - channelWidth/2.0);
     unsigned int secs = getSecsFromHeader((unsigned char *)header);
     double time_mjd = mjd((time_t)secs);
 
-    double tstamp = (double)intUs/1000000.0;
+    //double tstamp = (double)intUs/1000000.0;
 
     // Get the source ra/dec
+    /*
     char command[256];
     sprintf(command, "ssh atasys@10.3.0.59 atacheck %s", sourcename);
     FILE *fp = popen(command,"r"); 
-    /* read output from command */
-    int n = fscanf(fp,"%s\n", command);   /* or other STDIO input functions */
+    // read output from command 
+    int n = fscanf(fp,"%s\n", command);   // or other STDIO input functions
     int lineCount = 0;
     double ra = 0.0;
     double dec = 0.0;
@@ -173,9 +177,10 @@ FILE *gatherHeaderdata(PacketHeader *header, int fft_size, char *sourcename ) {
           sscanf(command, "%lf,%lf\n", &ra, &dec);
           fprintf(stderr,"RA=%lf, DEC=%lf\n", ra, dec);
       }
-      n = fscanf(fp,"%s\n", command);   /* or other STDIO input functions */
+      n = fscanf(fp,"%s\n", command);   // or other STDIO input functions 
     }
     fclose(fp);
+    */
 
     // ssh atasys@10.3.0.59 atacheck w3oh
 
@@ -186,7 +191,7 @@ FILE *gatherHeaderdata(PacketHeader *header, int fft_size, char *sourcename ) {
     fbheader.nbits     = 32;
     fbheader.fch1      = middleFirstChannel;
     fbheader.telescope_id = 9; //ATA
-    fbheader.foff      = channelWidth;
+    fbheader.foff      = -channelWidth;
     fbheader.tsamp     = tstamp;
     fbheader.nchans    = fftSize;
     fbheader.tstart    = time_mjd;
@@ -294,6 +299,12 @@ void readArgs(int argc, char *argv[]) {
         }
         else if(!strncmp(argv[i], "-outbw", strlen("-outbw"))) {
             outputBWHz = atof(argv[i+1]);
+        }
+        else if(!strncmp(argv[i], "-ra", strlen("-ra"))) {
+            ra = atof(argv[i+1]);
+        }
+        else if(!strncmp(argv[i], "-dec", strlen("-dec"))) {
+            dec = atof(argv[i+1]);
         }
         else if(!strncmp(argv[i], "-p", strlen("-p"))) {
             port = (unsigned short)atoi(argv[i+1]);
@@ -453,7 +464,8 @@ void fftInit() {
 
     fft_in = (fftwf_complex*) fftwf_malloc(sizeof(fftw_complex) * fftSize);
     fft_out = (fftwf_complex*) fftwf_malloc(sizeof(fftw_complex) * fftSize);
-    fft_plan = fftwf_plan_dft_1d(fftSize,fft_in, fft_out, FFTW_FORWARD, FFTW_ESTIMATE);
+    //fft_plan = fftwf_plan_dft_1d(fftSize,fft_in, fft_out, FFTW_FORWARD, FFTW_ESTIMATE);
+    fft_plan = fftwf_plan_dft_1d(fftSize,fft_in, fft_out, FFTW_FORWARD, FFTW_MEASURE);
 }
 
 void fftDestroy() {
@@ -468,144 +480,174 @@ void dump(float *power, int len, FILE *outputFp) {
 
     /*
     int i = 0;
+    float max = 0;
+    int max_i = -1;
     for(i = 0; i<len; i++) {
-        printf("%f,", power[i]);
+        //printf("[%d]%f,", i, power[i]);
+	if(power[i] > max) {
+		max = power[i];
+		max_i = i;
+	}
     }
-    printf("\n");
     */
 
-    //Make the first value == the second value. Takes care of large DC
-    power[0] = power[1];
+    //fbWriteFloatData(power, len, outputFp);
+    // Swap positive, negative
+    //power[0] = power[1];
+    //fbWriteFloatData(power, len, outputFp);
 
-    fbWriteFloatData(power, len, outputFp);
+    int i = len - 1;
+    int j = 0;
+    float temp = 0.0;
+    while(i > j)
+    {
+	    temp = power[i];
+	    power[i] = power[j];
+	    power[j] = temp;
+	    i--;
+	    j++;
+    }
+
+    fbWriteFloatData(power + len/2, len/2, outputFp);
+    fbWriteFloatData(power, len/2, outputFp);
     //int success = fbWriteFloatData(power, len, outputFp);
     //fprintf(stderr, "Dump success = %d\n", success);
+    /*
+    i = 0;
+    for(i = 0; i<len; i++) {
+        printf("[%d]%f,", i, power[i]);
+    }
+    */
 
 }
 
 int main (int argc, char *argv[])
 {
-    int i = 0;
-    int j = 0;
-    int k = 0;
+	int i = 0;
+	int j = 0;
+	int k = 0;
 
-    memset(multicastAddress, 0, sizeof(multicastAddress));
-    memset(filename, 0, sizeof(filename));
-    memset(outputFilename, 0, sizeof(outputFilename));
-    memset(sourceName, 0, sizeof(sourceName));
-    memset(databuf, 0, DATA_BUF_SIZE);
+	memset(multicastAddress, 0, sizeof(multicastAddress));
+	memset(filename, 0, sizeof(filename));
+	memset(outputFilename, 0, sizeof(outputFilename));
+	memset(sourceName, 0, sizeof(sourceName));
+	memset(databuf, 0, DATA_BUF_SIZE);
 
-    readArgs(argc, argv);
+	readArgs(argc, argv);
 
-    int inFd = openInput();
+	int inFd = openInput();
 
-    if(inFd < 0) {
-        fprintf(stderr, "Problem opening input, exiting...\n\n");
-        exit(-1);
-    }
+	if(inFd < 0) {
+		fprintf(stderr, "Problem opening input, exiting...\n\n");
+		exit(-1);
+	}
 
-    checkArgs();
+	checkArgs();
 
-    int n = 0;
-    int packetCount = 0;
-    unsigned char *data = NULL;
-    float *power = (float *)calloc(fftSize, sizeof(float));
-    double sampleRate = 0.0;
-    int packetsPerDump = 0;
-    int fftCount = 0;
+	int n = 0;
+	int packetCount = 0;
+	unsigned char *data = NULL;
+	float *power = (float *)calloc(fftSize, sizeof(float));
+	double sampleRate = 0.0;
+	int packetsPerDump = 0;
+	int fftCount = 0;
 
-    //position 
-    int fft_pos = 0;
+	//position 
+	int fft_pos = 0;
 
-    fftInit();
+	fftInit();
 
-    int firstHeader = 1;
+	int firstHeader = 1;
 
-    FILE *outputFp = NULL;
+	FILE *outputFp = NULL;
 
-    while(1)
-    {
-        n = read(inFd, databuf, DATA_BUF_SIZE);
+	while(1)
+	{
+		n = read(inFd, databuf, DATA_BUF_SIZE);
 
-        if (n <= 0) 
-        {
-            perror("reading datagram message");
-            close(sd);
-            fftDestroy();
-            fbClose(outputFp);
-            exit(1);
-        }
-        else
-        {
-            data = databuf + sizeof(PacketHeader);
+		if (n <= 0) 
+		{
+			perror("reading datagram message");
+			close(sd);
+			fftDestroy();
+			fbClose(outputFp);
+			exit(1);
+		}
+		else
+		{
+			data = databuf + sizeof(PacketHeader);
 
-            if(headerOnly) {
-                printBFHeader(databuf);
-                exit(0);
-            }
+			if(headerOnly) {
+				printBFHeader(databuf);
+				exit(0);
+			}
 
-            if(firstHeader == 1) {
-                firstHeader = 0;
-                getSecsFromHeader(databuf);
-                printTime(databuf);
-                sampleRate = getSampleRate(databuf);
-                fprintf(stderr,"Sample rate = %lf\n", sampleRate);
-                //Calculate the number of packets for each dump
-                // sr(s/sec)*intSecs(sec)/(samples/packet)
-                packetsPerDump = (int)((double)(sampleRate*1000000.0)*((double)intUs/1000000.0)/(double)SAMPLES_PER_PACKET);
-                fprintf(stderr,"Packets per dump = %d\n", packetsPerDump);
+			if(firstHeader == 1) {
+				firstHeader = 0;
+				getSecsFromHeader(databuf);
+				printTime(databuf);
+				sampleRate = getSampleRate(databuf);
+				fprintf(stderr,"Sample rate = %lf\n", sampleRate);
+				//Calculate the number of packets for each dump
+				// sr(s/sec)*intSecs(sec)/(samples/packet)
+				packetsPerDump = (int)((double)(sampleRate*1000000.0)*((double)intUs/1000000.0)/(double)SAMPLES_PER_PACKET);
+				fprintf(stderr,"Packets per dump = %d\n", packetsPerDump);
 
-                outputFp = gatherHeaderdata((PacketHeader *)databuf, fftSize, sourceName );
-            }
+				float tstamp = (1.0/51200.0)*(float)packetsPerDump;
+				outputFp = gatherHeaderdata((PacketHeader *)databuf, fftSize, sourceName, tstamp );
+			}
 
-            packetCount++;
-            //fprintf(stderr,"%d,", fftCount);
+			packetCount++;
+			//fprintf(stderr,"%d,", fftCount);
 
-            // Gather data for an FFT
-            i = 0;
-            while(i < DATA_SIZE) {
-                //fprintf(stderr, "Loop %d\n", i);
-                for(j = fft_pos; (j < fftSize) && i <(DATA_SIZE); j++) {
-                    fft_in[j][0] = data[i++];
-                    fft_in[j][1] = data[i++];
-                    fft_pos++;
-                    //fprintf(stderr, "j = %d, i = %d\n", j, i);
-                    //fprintf(stderr, "count=%d\n", ++count);
+			// Gather data for an FFT
+			i = 0;
+			while(i < DATA_SIZE) {
+				//fprintf(stderr, "Loop %d\n", i);
+				for(j = fft_pos; (j < fftSize) && i <(DATA_SIZE); j++) {
+					fft_in[j][0] = data[i++];
+					fft_in[j][1] = -data[i++]; //Beamformer data is reverse direction
+					fft_pos++;
+					//fprintf(stderr, "j = %d, i = %d\n", j, i);
+					//fprintf(stderr, "count=%d\n", ++count);
 
-                    if(j == (fftSize-1)) {
-                        fftCount++;
-                        //fprintf(stderr, "FFT: j = %d, i = %d\n", j, i);
-                        fftwf_execute(fft_plan);
+					if(j == (fftSize-1)) {
+						fftCount++;
+						//fprintf(stderr, "FFT: j = %d, i = %d\n", j, i);
+						fftwf_execute(fft_plan);
 
-                        for(k = 0; k < fftSize; k++) {
-                            float re = fft_out[k][0];
-                            float im = fft_out[k][1];
-                            power[k] += sqrt(re*re + im*im);
-                            fft_pos = 0;
-                        }
+						for(k = 0; k < fftSize; k++) {
+							float re = fft_out[k][0];
+							float im = fft_out[k][1];
+							//power[k] += sqrt(re*re + im*im);
+							power[k] += (re*re + im*im);
+							fft_pos = 0;
+						}
 
-                        if(packetCount >= packetsPerDump) {
-                            packetCount = 0;
+						if(packetCount >= packetsPerDump) {
+							packetCount = 0;
 
-                            for(k = 0; k < fftSize; k++) {
-                                power[k] /= fftCount;
-                            }
-                            dump(power, fftSize, outputFp);
-                            memset(power, 0, fftSize);
-                            fftCount = 0;
-                        }
+							/*
+							   for(k = 0; k < fftSize; k++) {
+							   power[k] /= fftCount;
+							   }
+							   */
+							dump(power, fftSize, outputFp);
+							memset(power, 0, fftSize * sizeof(float));
+							fftCount = 0;
+						}
 
-                        /*
-                           nowSeconds = time(NULL);
-                           fprintf(stderr,"%f,%f, %lf\n", power[0], power[1], (double)count/(double)(nowSeconds - startSeconds));
-                           */
-                    }
-                }
-            }
+						/*
+						   nowSeconds = time(NULL);
+						   fprintf(stderr,"%f,%f, %lf\n", power[0], power[1], (double)count/(double)(nowSeconds - startSeconds));
+						   */
+					}
+				}
+			}
 
-        }
+		}
 
-    }
+	}
 
-    fbClose(outputFp);
+	fbClose(outputFp);
 }
