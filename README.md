@@ -14,11 +14,9 @@ Example:
 
 ./bf2fb -h prints the help and exits.
 
-This will read in the raw beamformer data and create a file names test.bin with 10 seconf interation times:
+This will read in the raw beamformer data and create a file names test.bin with ~64 microseconds interation times:
 
-./bf2fb -input ../../anttest10_1ants_w3oh_6660_4hrphase.raw -outfreq 1422.5 -outbw 0.1 -fftsize 128 -int 10000 -output ./testdata/test.fil -source w3oh
-
-sudo ./bf2fb -input /data/psrB0329+54-2990mhz-april22-2018.raw -outfreq 2990 -outbw 0.1 -fftsize 1024 -int 64 -output /data/ptest1.raw -source ptest1
+./bf2fb -input /data/psrB0329+54-2990mhz-april22-2018.raw -outfreq 2990 -outbw 0.1 -fftsize 2048 -int 64 -output /data/psrB0329+54_2990mhz_64us_8ants_10min_apr22_2018.fil -ra 3.549824  -dec 54.578770 -source psrB0329+54
 
 Note: this is a work in progress. The -outfreq and -outbw do nothing yet.
 
