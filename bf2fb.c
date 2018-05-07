@@ -496,6 +496,7 @@ void dump(float *power, int len, FILE *outputFp) {
     //power[0] = power[1];
     //fbWriteFloatData(power, len, outputFp);
 
+	/*
     int i = len - 1;
     int j = 0;
     float temp = 0.0;
@@ -507,6 +508,7 @@ void dump(float *power, int len, FILE *outputFp) {
 	    i--;
 	    j++;
     }
+    */
 
     fbWriteFloatData(power + len/2, len/2, outputFp);
     fbWriteFloatData(power, len/2, outputFp);
@@ -605,8 +607,8 @@ int main (int argc, char *argv[])
 			while(i < DATA_SIZE) {
 				//fprintf(stderr, "Loop %d\n", i);
 				for(j = fft_pos; (j < fftSize) && i <(DATA_SIZE); j++) {
-					fft_in[j][0] = data[i++];
-					fft_in[j][1] = -data[i++]; //Beamformer data is reverse direction
+					fft_in[j][0] = (char)data[i++];
+					fft_in[j][1] = (char)data[i++]; //Beamformer data is reverse direction
 					fft_pos++;
 					//fprintf(stderr, "j = %d, i = %d\n", j, i);
 					//fprintf(stderr, "count=%d\n", ++count);
