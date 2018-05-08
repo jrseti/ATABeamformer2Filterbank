@@ -16,5 +16,7 @@ bf2fb.o: bf2fb.c
 fb.o: fb.c
 	$(CC) $(CFLAGS) -c fb.c
 
+install:
+	cp ./bf2fb /usr/local/bin	
 clean:
 	rm -f *~ *.o $(EXE)
